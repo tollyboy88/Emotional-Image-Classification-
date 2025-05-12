@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Emotion Image Classifier</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+    h1 {
+      color: #333;
+    }
+    #preview {
+      max-width: 300px;
+      margin: 20px auto;
+      display: block;
+      border: 2px solid #ccc;
+      border-radius: 5px;
+    }
+    #imageUpload {
+      margin: 10px;
+    }
+    #predictButton {
+      padding: 10px 20px;
+      font-size: 16px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    #predictButton:hover {
+      background-color: #45a049;
+    }
+    #predictButton:disabled {
+      background-color: #cccccc;
+      cursor: not-allowed;
+    }
+    #result {
+      margin-top: 20px;
+      font-size: 18px;
+      color: #333;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+  <script src="model.js"></script>
+</head>
+<body>
+  <h1>Emotion Classifier</h1>
+  <input type="file" id="imageUpload" accept="image/*">
+  <img id="preview" src="" alt="Image preview">
+  <button id="predictButton" disabled>Predict</button>
+  <div id="result"></div>
+
+  <script>
+    const classNames = ['playground', 'war ground', 'happy', 'sad'];
+    let model;
+    const predictButton = document.getElementById('predictButton');
+
+    async function loadModel() {
+      try {
+        model = await loadEmbeddedModel();
+        console.log("Model loaded successfully.");
+      } catch (error) {
+        console.error("Error loading model:", error);
+        document.getElementById('result').textContent = "Failed to load model.";
+      }
+    }
+
+    loadModel();
+
+    document.getElementById('imageUpload').addEventListener('change', (event) => {
+      const file = event.target.files[0];
+      if (!file) {
+        predictButton.disabled = true;
+        return;
+      }
+
+      const img = document.getElementById('preview');
+      img.src = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(img.src);
+        predictButton.disabled = false;
+      };
+    });
+
+    predictButton.addEventListener('click', async () => {
+      if (!model) {
+        document.getElementById('result').textContent = "Model is not loaded yet.";
+        return;
+      }
+
+      const img = document.getElementById('preview');
+      if (!img.src) {
+        document.getElementById('result').textContent = "Please upload an image first.";
+        return;
+      }
+
+      try {
+        predictButton.disabled = true;
+        document.getElementById('result').textContent = "Predicting...";
+
+        const tensor = tf.browser.fromPixels(img)
+          .resizeNearestNeighbor([256, 256])
+          .toFloat()
+          .div(255.0)
+          .expandDims();
+
+        const prediction = await model.predict(tensor).data();
+        const maxIndex = prediction.indexOf(Math.max(...prediction));
+
+        document.getElementById('result').textContent = 
+          `Prediction: ${classNames[maxIndex]} (Confidence: ${prediction[maxIndex].toFixed(4)})`;
+
+        tensor.dispose();
+      } catch (error) {
+        console.error("Prediction error:", error);
+        document.getElementById('result').textContent = "Error during prediction.";
+      } finally {
+        predictButton.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
